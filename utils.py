@@ -3,16 +3,24 @@ from PIL import Image, ImageFont, ImageDraw, ImageOps
 
 
 def sort_chars(char_list, font, language):
+    # 创建一个临时图片来获取字符大小
+    temp_img = Image.new('L', (100, 100), 255)
+    draw = ImageDraw.Draw(temp_img)
+    
+    def get_text_size(text, font):
+        bbox = draw.textbbox((0, 0), text, font=font)
+        return bbox[2] - bbox[0], bbox[3] - bbox[1]
+    
     if language == "chinese":
-        char_width, char_height = font.getsize("制")
+        char_width, char_height = get_text_size("制", font)
     elif language == "korean":
-        char_width, char_height = font.getsize("ㅊ")
+        char_width, char_height = get_text_size("ㅊ", font)
     elif language == "japanese":
-        char_width, char_height = font.getsize("あ")
+        char_width, char_height = get_text_size("あ", font)
     elif language in ["english", "german", "french", "spanish", "italian", "portuguese", "polish"]:
-        char_width, char_height = font.getsize("A")
+        char_width, char_height = get_text_size("A", font)
     elif language == "russian":
-        char_width, char_height = font.getsize("A")
+        char_width, char_height = get_text_size("A", font)
     num_chars = min(len(char_list), 100)
     out_width = char_width * len(char_list)
     out_height = char_height
