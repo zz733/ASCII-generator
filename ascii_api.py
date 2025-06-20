@@ -3,20 +3,18 @@ import io
 import cv2
 import numpy as np
 import traceback
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import Response, FileResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from fastapi.responses import Response, StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-import tempfile
-import time
-import uuid
-from typing import Union, BinaryIO
-from PIL import Image, ImageDraw, ImageFont, ImageOps
-from typing import Optional, Tuple, List, Dict, Any, Union, BinaryIO
-import tempfile
-import sys
-import time
 from pydantic import BaseModel
-from alphabets import *
+from typing import List, Optional, Union, BinaryIO
+import time
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+import logging
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class AsciiArtRequest(BaseModel):
     text: str = "刘德华"
@@ -73,24 +71,35 @@ def process_image(
     # 设置背景色代码
     bg_code = 0 if background == "black" else 255
     
-    # 处理自定义文本
-    if text:
-        # 使用自定义文本作为字符集
-        char_list = text * 100  # 重复多次以确保有足够的字符
+    # 始终使用中文字符集
+    from utils import get_data
+    
+    # 如果提供了文本，则使用文本中的字符，否则使用默认中文字符集
+    if text and text.strip():
+        # 使用自定义文本作为字符集，去重并确保有足够的字符
+        unique_chars = list(dict.fromkeys(text))  # 去重保持顺序
+        if not unique_chars:
+            unique_chars = ['*']  # 如果文本中没有有效字符，使用默认字符
+        # 添加一些灰度字符以增强细节表现
+        if len(unique_chars) < 10:
+            unique_chars.extend(['。', '，', '、', '：', '；', '“', '”', '《', '》', '（', '）'])
+        # 重复字符集以确保有足够的字符用于绘制
+        char_list = (unique_chars * (100 // len(unique_chars) + 1))[:100]
         
-        # 设置中文字体
-        font_size = 12
+        # 设置中文字体，增大字体大小以显示更多细节
+        font_size = 14
         font = get_font(font_size)
         sample_character = char_list[0] if char_list else "A"
-        scale = 1.5  # 行高比例
-        num_chars = len(set(char_list))  # 去重后的字符数量
+        scale = 1.6  # 增加行高比例
     else:
-        # 使用预定义的字符集
-        from utils import get_data
-        char_list, font, sample_character, scale = get_data(language, mode)
-        num_chars = len(set(char_list))  # 使用唯一字符数量
+        # 使用预定义的中文字符集，使用dense模式获取更清晰的字符集
+        char_list, font, sample_character, scale = get_data("chinese", "dense")
+        # 调整字体大小以优化显示效果
+        font = get_font(14)  # 增大字体大小
     
-    # 读取图片
+    num_chars = len(set(char_list))  # 唯一字符数量
+    
+    # 处理图片
     if isinstance(image_path, (str, os.PathLike)):
         image = cv2.imread(str(image_path))
         if image is None:
@@ -100,20 +109,54 @@ def process_image(
         file_bytes = np.asarray(bytearray(image_path.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     
+    # 1. 调整图像大小，保持宽高比
+    height, width = image.shape[:2]
+    aspect_ratio = width / height
+    new_height = int(num_cols / aspect_ratio * 1.5)  # 调整高度比例
+    image = cv2.resize(image, (num_cols, new_height), interpolation=cv2.INTER_CUBIC)
+    
+    # 2. 应用高斯模糊去噪
+    image = cv2.GaussianBlur(image, (3, 3), 0)
+    
+    # 3. 应用自适应直方图均衡化 (CLAHE)
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+    limg = cv2.merge((cl,a,b))
+    image = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+    
+    # 4. 锐化图像
+    kernel = np.array([[-1,-1,-1],
+                      [-1, 9,-1],
+                      [-1,-1,-1]])
+    image = cv2.filter2D(image, -1, kernel)
+    
     # 转换为RGB颜色空间
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     height, width = image.shape[:2]
     
-    # 如果不是彩色模式，转换为灰度图
-    if not color:
+    if color:
+        # 对彩色图像应用CLAHE增强对比度
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        cl = clahe.apply(l)
+        limg = cv2.merge((cl,a,b))
+        image_enhanced = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+        image_rgb = cv2.cvtColor(image_enhanced, cv2.COLOR_BGR2RGB)
+    else:
+        # 对灰度图应用直方图均衡化
         image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        image_gray = cv2.equalizeHist(image_gray)
     
     # 如果是横屏图片但启用了竖屏模式，则旋转图片
     if portrait and width > height:
-        image_rgb = cv2.rotate(image_rgb, cv2.ROTATE_90_CLOCKWISE)
-        if not color:
+        if color:
+            image_rgb = cv2.rotate(image_rgb, cv2.ROTATE_90_CLOCKWISE)
+        else:
             image_gray = cv2.rotate(image_gray, cv2.ROTATE_90_CLOCKWISE)
-        height, width = image_rgb.shape[:2]
+        height, width = (width, height)  # 交换宽高
     
     # 计算单元格大小和行列数
     cell_width = width / num_cols
@@ -128,24 +171,38 @@ def process_image(
         num_cols = int(width / cell_width)
         num_rows = int(height / cell_height)
     
-    # 创建一个临时图片来获取字符大小
+    # 获取字符大小
     temp_img = Image.new('L', (100, 100), 255)
     draw = ImageDraw.Draw(temp_img)
     bbox = draw.textbbox((0, 0), sample_character, font=font)
     char_width, char_height = bbox[2] - bbox[0], bbox[3] - bbox[1]
     
+    # 调整字符大小和间距
+    char_spacing = 0  # 字符间距
+    line_spacing = 0   # 行间距
+    
+    # 计算输出图片大小
+    out_width = num_cols * char_width
+    out_height = int(num_rows * char_height * 1.5)  # 1.5倍行高
+    
     # 创建输出图片
-    out_width = char_width * num_cols
-    out_height = int(scale * char_height * num_rows)
+    if color:
+        out_image = Image.new("RGB", (out_width, out_height), (0, 0, 0) if background == "black" else (255, 255, 255))
+    else:
+        out_image = Image.new("L", (out_width, out_height), 0 if background == "black" else 255)
+    
+    draw = ImageDraw.Draw(out_image)
     
     if color:
-        out_image = Image.new("RGB", (out_width, out_height), (255, 255, 255))
+        # 彩色模式下使用与背景色对应的 RGB 颜色
+        bg_rgb = (255, 255, 255) if background == "white" else (0, 0, 0)
+        out_image = Image.new("RGB", (out_width, out_height), bg_rgb)
     else:
         out_image = Image.new("L", (out_width, out_height), bg_code)
     
     draw = ImageDraw.Draw(out_image)
     
-    # 处理每一行
+    # 处理每个单元格
     for i in range(num_rows):
         y_start = int(i * cell_height)
         y_end = min(int((i + 1) * cell_height), height)
@@ -159,8 +216,9 @@ def process_image(
                 # 彩色模式：获取平均颜色
                 region = image_rgb[y_start:y_end, x_start:x_end]
                 if region.size > 0:
+                    # 计算平均颜色
                     avg_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
-                    # 计算灰度值用于选择字符
+                    # 计算灰度值用于选择字符（使用简单平均值，与img2img.py一致）
                     gray = np.mean(region)
                 else:
                     avg_color = (bg_code, bg_code, bg_code)
@@ -175,20 +233,16 @@ def process_image(
             char = char_list[char_idx] if char_list else " "
             
             # 计算绘制位置
-            if portrait:
-                # 竖排文字（从上到下，从右到左）
-                x = out_width - (j + 1) * char_width
-                y = i * char_height * scale  # 应用行高比例
-            else:
-                # 横排文字（从左到右，从上到下）
-                x = j * char_width
-                y = i * char_height * scale  # 应用行高比例
+            x = j * char_width
+            y = i * int(char_height * 1.5)  # 1.5倍行高
             
             # 绘制字符
-            if color and region.size > 0:
-                draw.text((x, y), char, fill=tuple(avg_color), font=font)
+            if color:
+                if region.size > 0:
+                    draw.text((x, y), char, fill=tuple(avg_color), font=font)
             else:
-                fill_color = 255 - bg_code if region.size > 0 else bg_code
+                # 黑白模式
+                fill_color = 255 - int(gray) if background == "black" else int(gray)
                 draw.text((x, y), char, fill=fill_color, font=font)
     
     # 裁剪图片
@@ -209,11 +263,25 @@ async def generate_ascii_art(
     text: str = "",
     num_cols: int = 300,
     background: str = "black",
-    color: bool = True,
+    color: bool = Query(True, description="是否生成彩色图像"),
     portrait: bool = False,
     language: str = "chinese",
     mode: str = "standard"
 ):
+    """
+    生成ASCII艺术图片API (优化版)
+    
+    Args:
+        file: 上传的图片文件
+        text: 用于生成ASCII艺术的文本
+        num_cols: 输出图像的列数
+        background: 背景颜色 ('black' 或 'white')
+        color: 是否生成彩色图像
+        portrait: 是否使用竖排模式
+        language: 字符集语言 ('chinese' 或 'english')
+        mode: 字符集模式 ('standard' 或 'dense')
+    """
+    print(f"API received parameters - color: {color}, type: {type(color)}")  # 调试信息
     """
     生成ASCII艺术图片API
     
@@ -230,126 +298,60 @@ async def generate_ascii_art(
     """
     start_time = time.time()
     request_id = f"req_{int(start_time)}_{os.urandom(4).hex()}"
-    temp_upload_path = None
     
     try:
-        print(f"[{request_id}] 收到请求: text={text}, num_cols={num_cols}, "
-              f"background={background}, color={color}, portrait={portrait}")
-        
         # 参数验证
         if background not in ["black", "white"]:
-            error_msg = f"[{request_id}] 无效的背景颜色: {background}"
-            print(error_msg)
             raise HTTPException(status_code=400, detail="Background must be 'black' or 'white'")
         
         if num_cols <= 0 or num_cols > 1000:
-            error_msg = f"[{request_id}] 无效的列数: {num_cols}"
-            print(error_msg)
             raise HTTPException(status_code=400, detail="Number of columns must be between 1 and 1000")
             
+        # 如果 text 为空字符串，使用 language 和 mode 获取默认字符集
         if not text.strip():
-            error_msg = f"[{request_id}] 文本不能为空"
-            print(error_msg)
-            raise HTTPException(status_code=400, detail="Text cannot be empty")
+            text = None  # 设置为 None 让 process_image 使用默认字符集
         
         # 验证文件类型
         content_type = file.content_type
         if not content_type or not content_type.startswith('image/'):
-            error_msg = f"[{request_id}] 无效的文件类型: {content_type}"
-            print(error_msg)
             raise HTTPException(status_code=400, detail="File must be an image")
             
-        print(f"[{request_id}] 参数验证通过")
+        # 直接读取文件内容到内存
+        file_content = await file.read()
         
-        # 1. 保存上传的文件
-        try:
-            print(f"[{request_id}] 开始保存上传文件...")
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_upload:
-                content = await file.read()
-                if not content:
-                    error_msg = f"[{request_id}] 上传的文件为空"
-                    print(error_msg)
-                    raise HTTPException(status_code=400, detail="Uploaded file is empty")
-                
-                file_size = len(content)
-                if file_size > 10 * 1024 * 1024:  # 10MB限制
-                    error_msg = f"[{request_id}] 文件大小超过10MB限制"
-                    print(error_msg)
-                    raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
-                    
-                temp_upload.write(content)
-                temp_upload_path = temp_upload.name
-                print(f"[{request_id}] 已保存上传文件到: {temp_upload_path} (大小: {file_size/1024:.2f} KB)")
-        except HTTPException:
-            raise
-        except Exception as e:
-            error_msg = f"[{request_id}] 保存上传文件失败: {str(e)}"
-            print(error_msg)
-            raise HTTPException(status_code=500, detail=f"保存上传文件失败: {str(e)}") from e
+        # 处理图片
+        start_process = time.time()
+        print(f"Processing image with color mode: {color}")  # 调试信息
+        result_image = process_image(
+            io.BytesIO(file_content),  # 使用BytesIO避免临时文件
+            text=text,
+            num_cols=num_cols,
+            background=background,
+            color=color,
+            portrait=portrait,
+            language=language,
+            mode=mode
+        )
+        print(f"Generated image mode: {result_image.mode}")  # 调试信息
+        process_time = time.time() - start_process
         
-        try:
-            # 2. 处理图片
-            print(f"[{request_id}] 开始处理图片...")
-            try:
-                result_image = process_image(
-                    temp_upload_path,
-                    text=text,
-                    num_cols=num_cols,
-                    background=background,
-                    color=color,
-                    portrait=portrait,
-                    language=language,
-                    mode=mode
-                )
-                print(f"[{request_id}] 图片处理完成")
-            except Exception as e:
-                error_msg = f"[{request_id}] 处理请求时发生未预期的错误: {str(e)}"
-                print(f"{error_msg}\n{traceback.format_exc()}")
-                raise HTTPException(status_code=500, detail=f"处理请求时发生错误: {str(e)}") from e
+        # 将图片转换为字节流
+        img_byte_arr = io.BytesIO()
+        result_image.save(img_byte_arr, format='JPEG', quality=95)
+        img_byte_arr = img_byte_arr.getvalue()
+        
+        # 记录处理时间
+        logger.info(f"Image processed in {process_time:.2f} seconds")
+        
+        # 返回图片
+        return Response(
+            content=img_byte_arr,
+            media_type="image/jpeg",
+            headers={
+                "X-Processing-Time": f"{process_time:.2f}s"
+            }
+        )
             
-            # 3. 将结果保存到内存
-            print(f"[{request_id}] 正在编码图片...")
-            img_byte_arr = io.BytesIO()
-            try:
-                result_image.save(img_byte_arr, format='JPEG', quality=90, optimize=True)
-                img_byte_arr.seek(0)
-                result_size = len(img_byte_arr.getvalue()) / 1024  # KB
-                process_time = time.time() - start_time
-                print(f"[{request_id}] 图片编码完成. 大小: {result_size:.2f} KB, 处理时间: {process_time:.2f}秒")
-                
-                # 4. 返回图片数据
-                return Response(
-                    content=img_byte_arr.getvalue(),
-                    media_type="image/jpeg",
-                    headers={
-                        "Content-Disposition": f"inline; filename=ascii_art_{int(time.time())}.jpg",
-                        "X-Request-ID": request_id,
-                        "X-Image-Size-KB": f"{result_size:.2f}",
-                        "X-Process-Time": f"{process_time:.2f}s"
-                    }
-                )
-            except Exception as e:
-                error_msg = f"[{request_id}] 图片编码失败: {str(e)}"
-                print(error_msg)
-                raise HTTPException(status_code=500, detail=f"生成图片数据失败: {str(e)}") from e
-                
-        except HTTPException:
-            raise
-        except Exception as e:
-            import traceback
-            error_msg = f"[{request_id}] 处理图片时出错: {str(e)}\n{traceback.format_exc()}"
-            print(error_msg)
-            raise HTTPException(status_code=500, detail=f"处理图片时出错: {str(e)}") from e
-            
-        finally:
-            # 清理临时文件
-            if temp_upload_path and os.path.exists(temp_upload_path):
-                try:
-                    os.unlink(temp_upload_path)
-                    print(f"[{request_id}] 已清理临时文件: {temp_upload_path}")
-                except Exception as e:
-                    print(f"[{request_id}] 警告: 删除临时文件失败: {str(e)}")
-                
     except HTTPException as he:
         # 记录HTTP异常
         print(f"[{request_id}] 请求处理失败 (HTTP {he.status_code}): {he.detail}")

@@ -141,6 +141,7 @@ def main(opt):
                 # 彩色模式：获取平均颜色
                 region = image_rgb[y_start:y_end, x_start:x_end]
                 if region.size > 0:
+                    # 使用简单平均值计算颜色和灰度
                     avg_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
                     # 计算灰度值用于选择字符
                     gray = np.mean(region)
@@ -152,8 +153,26 @@ def main(opt):
                 region = image[y_start:y_end, x_start:x_end]
                 gray = np.mean(region) if region.size > 0 else bg_code
             
-            # 选择字符
-            char_idx = min(int(gray / 255 * num_chars), num_chars - 1)
+            # 打印调试信息
+            if i == num_rows // 2 and j == num_cols // 2:  # 只打印图像中心区域的信息
+                print(f"原始灰度值: {gray:.1f}")
+                
+            # 确保灰度值在有效范围内
+            gray = max(0, min(255, gray))
+            
+            # 调整亮度和对比度
+            # 1. 提高整体亮度
+            gray = min(255, gray * 1.3)
+            
+            # 2. 使用非线性映射增强暗部细节
+            normalized_gray = (gray / 255.0) ** 0.8
+            
+            # 3. 确保最小字符索引为1（避免使用最暗的字符）
+            char_idx = max(1, int(normalized_gray * (num_chars - 1)))
+            char_idx = min(char_idx, num_chars - 1)
+            
+            if i == num_rows // 2 and j == num_cols // 2:  # 只打印图像中心区域的信息
+                print(f"处理后灰度值: {gray:.1f}, 字符索引: {char_idx}")
             char = char_list[char_idx]
             
             # 计算绘制位置
