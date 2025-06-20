@@ -2,9 +2,10 @@
 @author: Viet Nguyen <nhviet1009@gmail.com>
 """
 import argparse
+import os
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageOps, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from utils import get_data
 
 
@@ -37,40 +38,57 @@ def main(opt):
     # 处理自定义文本
     if opt.custom_text:
         # 使用自定义文本作为字符集
-        char_list = opt.custom_text * 100  # 重复多次以确保有足够的字符
+        # 直接使用用户输入的文字，不重复
+        char_list = opt.custom_text
+        
+        # 确保字符集不为空
+        if not char_list:
+            char_list = "江雪利"  # 默认值
+            
+        # 打印调试信息
+        print(f"使用的字符集: {char_list}")
         
         # 设置中文字体
         try:
             # 尝试加载系统中文字体（macOS和Linux常见路径）
             font_paths = [
-                "/System/Library/Fonts/PingFang.ttc",  # macOS 苹方
-                "/System/Library/Fonts/STHeiti Light.ttc",  # macOS 黑体
-                "/System/Library/Fonts/STHeiti Medium.ttc",
-                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",  # 文泉驿微米黑
-                "simsun.ttc"  # Windows 宋体
+                "/System/Library/Fonts/STHeiti Light.ttc",  # macOS
+                "/System/Library/Fonts/PingFang.ttc",      # macOS
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",  # Linux
+                "C:/Windows/Fonts/simhei.ttf"  # Windows
             ]
             
+            # 查找第一个可用的字体
             font = None
             for font_path in font_paths:
                 try:
-                    font = ImageFont.truetype(font_path, size=12)
-                    print(f"使用字体: {font_path}")
-                    break
-                except:
+                    if os.path.exists(font_path):
+                        # 使用较大的字体大小
+                        font_size = 24
+                        font = ImageFont.truetype(font_path, font_size)
+                        print(f"使用字体: {font_path}")
+                        break
+                except Exception as e:
+                    print(f"加载字体 {font_path} 失败: {e}")
                     continue
-            
+                    
             if font is None:
-                # 如果找不到中文字体，使用默认字体
-                print("警告: 找不到中文字体，使用默认字体")
+                print("警告: 未找到中文字体，尝试使用默认字体")
                 font = ImageFont.load_default()
-            
-            sample_character = char_list[0] if char_list else "A"
-            scale = 1.5  # 调整行高比例
-            num_chars = len(set(char_list))  # 去重后的字符数量
-            
+                
+            # 打印字体信息
+            print(f"字体大小: {font.size}")
+            print(f"支持的字符: {char_list}")
+                
         except Exception as e:
-            print(f"使用自定义文本时出错: {e}, 回退到默认字符集")
-            char_list, font, sample_character, scale = get_data(opt.language, opt.mode)
+            print(f"加载中文字体失败: {e}")
+            print("将使用默认字体，但可能无法正确显示中文字符")
+            font = ImageFont.load_default()
+        
+        # 设置字符属性
+        sample_character = char_list[0] if char_list else "A"
+        scale = 1.5  # 调整行高比例
+        num_chars = len(set(char_list))  # 去重后的字符数量
     else:
         # 使用预定义的字符集
         char_list, font, sample_character, scale = get_data(opt.language, opt.mode)
@@ -141,10 +159,12 @@ def main(opt):
                 # 彩色模式：获取平均颜色
                 region = image_rgb[y_start:y_end, x_start:x_end]
                 if region.size > 0:
-                    # 使用简单平均值计算颜色和灰度
-                    avg_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
-                    # 计算灰度值用于选择字符
-                    gray = np.mean(region)
+                    # 使用中值减少噪声
+                    avg_color = np.median(region, axis=(0, 1)).astype(int)
+                    # 使用亮度公式计算灰度值
+                    r, g, b = avg_color
+                    gray = 0.299 * r + 0.587 * g + 0.114 * b
+                    avg_color = tuple(avg_color)
                 else:
                     avg_color = (bg_code, bg_code, bg_code)
                     gray = bg_code
@@ -157,19 +177,23 @@ def main(opt):
             if i == num_rows // 2 and j == num_cols // 2:  # 只打印图像中心区域的信息
                 print(f"原始灰度值: {gray:.1f}")
                 
-            # 确保灰度值在有效范围内
-            gray = max(0, min(255, gray))
+            # 1. 确保灰度值在有效范围内
+            normalized_gray = min(1.0, max(0.0, gray / 255.0))
             
-            # 调整亮度和对比度
-            # 1. 提高整体亮度
-            gray = min(255, gray * 1.3)
-            
-            # 2. 使用非线性映射增强暗部细节
-            normalized_gray = (gray / 255.0) ** 0.8
-            
-            # 3. 确保最小字符索引为1（避免使用最暗的字符）
-            char_idx = max(1, int(normalized_gray * (num_chars - 1)))
-            char_idx = min(char_idx, num_chars - 1)
+            # 2. 将灰度值映射到字符索引
+            # 使用灰度值在字符集中循环选择字符
+            if opt.custom_text:
+                # 对于自定义文本，直接根据位置循环使用字符
+                char_idx = (i * num_cols + j) % len(char_list)
+            else:
+                # 对于预定义字符集，使用灰度值映射
+                gamma = 0.6
+                normalized_gray = normalized_gray ** gamma
+                min_char_idx = 1  # 跳过最暗的字符
+                max_char_idx = num_chars - 1
+                char_range = max_char_idx - min_char_idx
+                char_idx = min_char_idx + int(normalized_gray * char_range)
+                char_idx = min(max_char_idx, max(min_char_idx, char_idx))
             
             if i == num_rows // 2 and j == num_cols // 2:  # 只打印图像中心区域的信息
                 print(f"处理后灰度值: {gray:.1f}, 字符索引: {char_idx}")
