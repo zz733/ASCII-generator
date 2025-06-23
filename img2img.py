@@ -49,37 +49,50 @@ def main(opt):
         print(f"使用的字符集: {char_list}")
         
         # 设置中文字体
-        try:
-            # 尝试加载系统中文字体（macOS和Linux常见路径）
-            font_paths = [
-                "/System/Library/Fonts/STHeiti Light.ttc",  # macOS
-                "/System/Library/Fonts/PingFang.ttc",      # macOS
-                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",  # Linux
-                "C:/Windows/Fonts/simhei.ttf"  # Windows
-            ]
-            
-            # 查找第一个可用的字体
-            font = None
-            for font_path in font_paths:
-                try:
-                    if os.path.exists(font_path):
-                        # 使用较大的字体大小
-                        font_size = 24
+        def find_compatible_font(font_size=24):
+            import platform
+            sys_platform = platform.system().lower()
+            font_candidates = []
+            # 优先级：用户常见字体
+            if sys_platform == "darwin":  # macOS
+                font_candidates = [
+                    "/System/Library/Fonts/PingFang.ttc",
+                    "/System/Library/Fonts/STHeiti Light.ttc",
+                    "/System/Library/Fonts/Hiragino Sans GB W3.ttc",
+                ]
+            elif sys_platform == "windows":
+                font_candidates = [
+                    "C:/Windows/Fonts/msyh.ttc",  # 微软雅黑
+                    "C:/Windows/Fonts/simhei.ttf", # 黑体
+                    "C:/Windows/Fonts/simsun.ttc", # 宋体
+                ]
+            else:  # Linux & 其他
+                font_candidates = [
+                    "/usr/share/fonts/chinese/simsun.ttf",  # 优先 simsun.ttf
+                    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                    "/usr/share/fonts/truetype/arphic/ukai.ttc",
+                    "/usr/share/fonts/truetype/arphic/uming.ttc",
+                    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                ]
+            for font_path in font_candidates:
+                if os.path.exists(font_path):
+                    try:
                         font = ImageFont.truetype(font_path, font_size)
                         print(f"使用字体: {font_path}")
-                        break
-                except Exception as e:
-                    print(f"加载字体 {font_path} 失败: {e}")
-                    continue
-                    
-            if font is None:
-                print("警告: 未找到中文字体，尝试使用默认字体")
-                font = ImageFont.load_default()
-                
-            # 打印字体信息
-            print(f"字体大小: {font.size}")
+                        return font
+                    except Exception as e:
+                        print(f"加载字体 {font_path} 失败: {e}")
+                        continue
+            print("警告: 未找到合适的中文字体，将使用默认字体，可能无法正确显示中文字符")
+            return ImageFont.load_default()
+
+        try:
+            font_size = 24
+            font = find_compatible_font(font_size)
+            print(f"字体大小: {getattr(font, 'size', font_size)}")
             print(f"支持的字符: {char_list}")
-                
         except Exception as e:
             print(f"加载中文字体失败: {e}")
             print("将使用默认字体，但可能无法正确显示中文字符")
