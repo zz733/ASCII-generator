@@ -77,13 +77,14 @@ def main(opt):
                     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
                 ]
             for font_path in font_candidates:
+                print(f"检测字体路径: {font_path} exists={os.path.exists(font_path)}")
                 if os.path.exists(font_path):
                     try:
                         font = ImageFont.truetype(font_path, font_size)
                         print(f"使用字体: {font_path}")
                         return font
                     except Exception as e:
-                        print(f"加载字体 {font_path} 失败: {e}")
+                        print(f"加载字体 {font_path} 失败: {repr(e)}")
                         continue
             print("警告: 未找到合适的中文字体，将使用默认字体，可能无法正确显示中文字符")
             return ImageFont.load_default()
