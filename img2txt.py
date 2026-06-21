@@ -100,11 +100,25 @@ def main(opt):
     if opt.output_image:
         from PIL import Image, ImageDraw, ImageFont
         import os
-        
-        # 计算图片尺寸
+        import platform
+
         font_size = opt.font_size
-        font = ImageFont.truetype("Arial.ttf" if os.name == 'nt' else "/System/Library/Fonts/Menlo.ttc", 
-                                 font_size)
+        sys_platform = platform.system().lower()
+        if sys_platform == "darwin":
+            font_path = "/System/Library/Fonts/Menlo.ttc"
+        elif sys_platform == "windows":
+            font_path = "C:/Windows/Fonts/consola.ttf"
+        else:
+            font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
+            for candidate in [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                "/usr/share/fonts/dejavu/DejaVuSansMono.ttf",
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "DejaVuSansMono-Bold.ttf"),
+            ]:
+                if os.path.exists(candidate):
+                    font_path = candidate
+                    break
+        font = ImageFont.truetype(font_path, font_size)
         char_width = font.getlength('M')  # 使用'M'作为参考字符
         char_height = font_size * 1.2  # 添加一些行间距
         

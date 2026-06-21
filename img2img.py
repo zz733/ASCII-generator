@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from utils import get_data
 
 
-def get_args():
+def get_args(argv=None):
     parser = argparse.ArgumentParser("Image to ASCII")
     parser.add_argument("--input", type=str, default="data/input.jpg", help="Path to input image")
     parser.add_argument("--output", type=str, default="data/output.jpg", help="Path to output image file")
@@ -21,10 +21,10 @@ def get_args():
                         help="Character set mode (standard, dense, sparse, etc.)")
     parser.add_argument("--background", type=str, default="black", choices=["black", "white"],
                         help="background's color")
-    parser.add_argument("--num_cols", type=int, default=300, help="number of character for output's width")
+    parser.add_argument("--num_cols", type=int, default=100, help="number of character for output's width")
     parser.add_argument("--color", action="store_true", help="Enable color output")
     parser.add_argument("--portrait", action="store_true", help="Optimize for portrait orientation (vertical images)")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     return args
 
 
@@ -43,7 +43,7 @@ def main(opt):
         
         # 确保字符集不为空
         if not char_list:
-            char_list = "江雪利"  # 默认值
+            char_list = "西施"  # 默认值
             
         # 打印调试信息
         print(f"使用的字符集: {char_list}")
@@ -239,8 +239,8 @@ def main(opt):
     if cropped_image:  # 确保有内容可以裁剪
         out_image = out_image.crop(cropped_image)
     
-    # 保存图片
-    out_image.save(opt.output, quality=95)
+    # 保存图片（降低质量以减小文件大小）
+    out_image.save(opt.output, quality=85, optimize=True)
     print(f"Image saved to {opt.output}")
 
 

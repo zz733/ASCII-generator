@@ -43,7 +43,10 @@ def main(opt):
         cell_height = 12
         num_cols = int(width / cell_width)
         num_rows = int(height / cell_height)
-    char_width, char_height = font.getsize(sample_character)
+    temp_img = Image.new('RGB', (100, 100), (0, 0, 0))
+    temp_draw = ImageDraw.Draw(temp_img)
+    bbox = temp_draw.textbbox((0, 0), sample_character, font=font)
+    char_width, char_height = bbox[2] - bbox[0], bbox[3] - bbox[1]
     out_width = char_width * num_cols
     out_height = scale * char_height * num_rows
     out_image = Image.new("RGB", (out_width, out_height), bg_code)

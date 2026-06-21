@@ -1,0 +1,64 @@
+<view class="container">
+  <view class="title-section">
+    <text class="title">ASCII 艺术生成器</text>
+    <text class="subtitle">上传照片，生成独特的 ASCII 艺术</text>
+  </view>
+
+  <view class="upload-section">
+    <view class="upload-area" bindtap="chooseImage">
+      <image wx:if="{{selectedImage}}" src="{{selectedImage}}" mode="aspectFit" class="preview-image"></image>
+      <view wx:else class="upload-placeholder">
+        <text class="upload-icon">+</text>
+        <text class="upload-text">点击上传照片</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="options-section">
+    <view class="option-item">
+      <text class="option-label">自定义文字</text>
+      <input class="option-input" value="{{customText}}" bindinput="onCustomTextChange" placeholder="输入字符（如：西施）" />
+    </view>
+
+    <view class="option-item">
+      <text class="option-label">语言</text>
+      <picker mode="selector" range="{{languages}}" value="{{languageIndex}}" bindchange="onLanguageChange">
+        <view class="picker-value">{{languages[languageIndex]}}</view>
+      </picker>
+    </view>
+
+    <view class="option-item">
+      <text class="option-label">彩色模式</text>
+      <switch checked="{{colorMode}}" bindchange="onColorModeChange" color="#00d4aa" />
+    </view>
+
+    <view class="option-item">
+      <text class="option-label">竖排模式</text>
+      <switch checked="{{portraitMode}}" bindchange="onPortraitModeChange" color="#00d4aa" />
+    </view>
+  </view>
+
+  <view class="action-section">
+    <button class="generate-btn {{selectedImage ? '' : 'disabled'}}" bindtap="generateArt" disabled="{{!selectedImage || loading}}">
+      <text wx:if="{{loading}}" class="btn-icon">⏳</text>
+      <text wx:else class="btn-icon">✨</text>
+      <text wx:if="{{loading}}" class="btn-text">生成中...</text>
+      <text wx:else class="btn-text">生成 ASCII 艺术</text>
+    </button>
+  </view>
+
+  <view class="privacy-mask" wx:if="{{showPrivacyPopup}}">
+    <view class="privacy-dialog">
+      <view class="privacy-title">隐私保护提示</view>
+      <view class="privacy-content">
+        在你使用本小程序服务之前，请仔细阅读
+        <navigator class="privacy-link" open-type="openPrivacyContract">《隐私保护指引》</navigator>
+        。如你同意，请点击"同意"开始使用。
+      </view>
+      <view class="privacy-btns">
+        <button class="privacy-btn reject" bindtap="onRejectPrivacy">拒绝</button>
+        <button class="privacy-btn agree" id="agree-btn" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="onAgreePrivacy">同意</button>
+      </view>
+    </view>
+  </view>
+</view>

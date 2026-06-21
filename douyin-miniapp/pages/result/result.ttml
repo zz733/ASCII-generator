@@ -1,0 +1,22 @@
+<view class="container">
+  <view class="result-section">
+    <image wx:if="{{resultImage}}" src="{{resultImage}}" mode="widthFix" class="result-image" bindtap="previewImage" binderror="onImageError" bindload="onImageLoad"></image>
+    <view wx:else class="loading-placeholder">
+      <text class="loading-text">加载中...</text>
+    </view>
+  </view>
+
+  <view class="action-section">
+    <button class="action-btn primary" bindtap="saveImage">
+      <text class="btn-text">保存到相册</text>
+    </button>
+
+    <button class="action-btn secondary" open-type="share">
+      <text class="btn-text">分享给好友</text>
+    </button>
+
+    <button class="action-btn outline" bindtap="goBack">
+      <text class="btn-text">继续生成</text>
+    </button>
+  </view>
+</view>

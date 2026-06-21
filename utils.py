@@ -1,5 +1,21 @@
+import os
+import platform
 import numpy as np
 from PIL import Image, ImageFont, ImageDraw, ImageOps
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FONTS_DIR = os.path.join(BASE_DIR, 'fonts')
+
+
+def _resolve_font(bundled_name, linux_system_paths=None):
+    bundled_path = os.path.join(FONTS_DIR, bundled_name)
+    if os.path.exists(bundled_path):
+        return bundled_path
+    if linux_system_paths:
+        for p in linux_system_paths:
+            if os.path.exists(p):
+                return p
+    return bundled_path
 
 
 def sort_chars(char_list, font, language):
@@ -50,64 +66,78 @@ def sort_chars(char_list, font, language):
 
 
 def get_data(language, mode):
+    dejavu_path = _resolve_font("DejaVuSansMono-Bold.ttf")
+    simsun_path = _resolve_font("simsun.ttc", [
+        "/usr/share/fonts/truetype/arphic/simsun.ttc",
+        "/usr/share/fonts/chinese/simsun.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    ])
+    arial_unicode_path = _resolve_font("arial-unicode.ttf", [
+        "/usr/share/fonts/truetype/arphic/ukai.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    ])
+
     if language == "general":
         from alphabets import GENERAL as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "A"
         scale = 2
     elif language == "english":
         from alphabets import ENGLISH as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "A"
         scale = 2
     elif language == "german":
         from alphabets import GERMAN as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "A"
         scale = 2
     elif language == "french":
         from alphabets import FRENCH as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "A"
         scale = 2
     elif language == "italian":
         from alphabets import ITALIAN as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "A"
         scale = 2
     elif language == "polish":
         from alphabets import POLISH as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "A"
         scale = 2
     elif language == "portuguese":
         from alphabets import PORTUGUESE as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "A"
         scale = 2
     elif language == "spanish":
         from alphabets import SPANISH as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "A"
         scale = 2
     elif language == "russian":
         from alphabets import RUSSIAN as character
-        font = ImageFont.truetype("fonts/DejaVuSansMono-Bold.ttf", size=20)
+        font = ImageFont.truetype(dejavu_path, size=20)
         sample_character = "Ш"
         scale = 2
     elif language == "chinese":
         from alphabets import CHINESE as character
-        font = ImageFont.truetype("fonts/simsun.ttc", size=10)
+        font = ImageFont.truetype(simsun_path, size=10)
         sample_character = "制"
         scale = 1
     elif language == "korean":
         from alphabets import KOREAN as character
-        font = ImageFont.truetype("fonts/arial-unicode.ttf", size=10)
+        font = ImageFont.truetype(arial_unicode_path, size=10)
         sample_character = "ㅊ"
         scale = 1
     elif language == "japanese":
         from alphabets import JAPANESE as character
-        font = ImageFont.truetype("fonts/arial-unicode.ttf", size=10)
+        font = ImageFont.truetype(arial_unicode_path, size=10)
         sample_character = "お"
         scale = 1
     else:

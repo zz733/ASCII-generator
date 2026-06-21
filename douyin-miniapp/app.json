@@ -1,0 +1,26 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/result/result"
+  ],
+  "window": {
+    "navigationBarTitleText": "ASCII艺术生成器",
+    "navigationBarBackgroundColor": "#1a1a1a",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0d0d0d"
+  },
+  "requiredPrivateInfos": [
+    "chooseMedia"
+  ],
+  "tabBar": {
+    "color": "#999",
+    "selectedColor": "#fff",
+    "backgroundColor": "#1a1a1a",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "生成"
+      }
+    ]
+  }
+}
