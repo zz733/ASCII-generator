@@ -8,39 +8,7 @@ Page({
     languageIndex: 0,
     colorMode: true,
     portraitMode: false,
-    loading: false,
-    showPrivacyPopup: false
-  },
-
-  _privacyResolve: null,
-
-  onLoad() {
-    if (typeof tt.onNeedPrivacyAuthorization === 'function') {
-      tt.onNeedPrivacyAuthorization((resolve, eventInfo) => {
-        console.log('onNeedPrivacyAuthorization triggered, eventInfo:', JSON.stringify(eventInfo));
-        this._privacyResolve = resolve;
-        this.setData({ showPrivacyPopup: true });
-      });
-    }
-  },
-
-  onAgreePrivacy(e) {
-    console.log('onAgreePrivacy, e.detail:', JSON.stringify(e.detail));
-    this.setData({ showPrivacyPopup: false });
-    if (this._privacyResolve) {
-      this._privacyResolve({ buttonId: 'agree-btn', event: 'agree' });
-      this._privacyResolve = null;
-    }
-  },
-
-  onRejectPrivacy() {
-    console.log('onRejectPrivacy');
-    this.setData({ showPrivacyPopup: false });
-    if (this._privacyResolve) {
-      this._privacyResolve({ event: 'disagree' });
-      this._privacyResolve = null;
-    }
-    tt.showToast({ title: '需要同意隐私协议才能使用', icon: 'none' });
+    loading: false
   },
 
   chooseImage() {

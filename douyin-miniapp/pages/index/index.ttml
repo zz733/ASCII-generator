@@ -46,19 +46,4 @@
       <text wx:else class="btn-text">生成 ASCII 艺术</text>
     </button>
   </view>
-
-  <view class="privacy-mask" wx:if="{{showPrivacyPopup}}">
-    <view class="privacy-dialog">
-      <view class="privacy-title">隐私保护提示</view>
-      <view class="privacy-content">
-        在你使用本小程序服务之前，请仔细阅读
-        <navigator class="privacy-link" open-type="openPrivacyContract">《隐私保护指引》</navigator>
-        。如你同意，请点击"同意"开始使用。
-      </view>
-      <view class="privacy-btns">
-        <button class="privacy-btn reject" bindtap="onRejectPrivacy">拒绝</button>
-        <button class="privacy-btn agree" id="agree-btn" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="onAgreePrivacy">同意</button>
-      </view>
-    </view>
-  </view>
 </view>
