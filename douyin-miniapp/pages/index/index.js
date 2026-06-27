@@ -70,25 +70,39 @@ Page({
       color: this.data.colorMode,
       portrait: this.data.portraitMode
     }).then((result) => {
-      console.log('生成成功, result:', JSON.stringify(result));
+      console.log('生成成功，result:', JSON.stringify(result));
+      
+      if (!result || !result.image_url) {
+        throw new Error('响应格式错误：' + JSON.stringify(result));
+      }
+      
       var imageUrl = result.image_url;
       if (imageUrl && imageUrl.indexOf('http') !== 0) {
         imageUrl = 'https://weixin.52iptv.net' + imageUrl;
       }
-      console.log('完整图片URL:', imageUrl);
+      console.log('完整图片 URL:', imageUrl);
 
       tt.hideLoading();
       this.setData({ loading: false });
 
       tt.navigateTo({
-        url: '/pages/result/result?imageUrl=' + encodeURIComponent(imageUrl)
+        url: '/pages/result/result?imageUrl=' + encodeURIComponent(imageUrl),
+        success: () => {
+          console.log('navigateTo 成功');
+        },
+        fail: (navErr) => {
+          console.error('navigateTo 失败:', JSON.stringify(navErr));
+          tt.showToast({ title: '页面跳转失败', icon: 'none' });
+        }
       });
     }).catch((err) => {
       tt.hideLoading();
       this.setData({ loading: false });
+      var errMsg = err.message || err.errMsg || JSON.stringify(err);
       tt.showToast({
-        title: '生成失败，请重试',
-        icon: 'none'
+        title: '生成失败：' + errMsg,
+        icon: 'none',
+        duration: 5000
       });
       console.error('Generate error:', err);
     });
