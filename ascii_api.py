@@ -5,7 +5,8 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from PIL import Image
@@ -27,6 +28,9 @@ app.add_middleware(
 
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# Serve static files
+app.mount("/api/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 
 def validate_image(file: UploadFile):
@@ -53,7 +57,7 @@ def validate_image(file: UploadFile):
 def process_image(
     input_path: str,
     output_path: str,
-    custom_text: str = "江雪利",
+    custom_text: str = "西施",
     language: str = "chinese",
     color: bool = True,
     portrait: bool = False,
@@ -103,11 +107,8 @@ async def generate_ascii_art(
             portrait=portrait,
         )
 
-        return FileResponse(
-            output_path,
-            media_type="image/jpeg",
-            filename=output_filename,
-        )
+        image_url = f"/api/outputs/{output_filename}"
+        return JSONResponse(content={"image_url": image_url, "filename": output_filename})
 
     except HTTPException:
         raise
